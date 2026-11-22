@@ -276,11 +276,48 @@ ingress:
 EOF
 }
 
+show_live_log() {
+  echo "=============================================================="
+  echo "  MONITOR LOG LIVE XRAY (Tekan Ctrl+C untuk kembali ke menu)"
+  echo "=============================================================="
+  echo " 1. Access Log Live  (/var/log/xray/access.log)"
+  echo " 2. Error Log Live   (/var/log/xray/error.log)"
+  echo " 3. Systemd Log Live (journalctl -u xray -f)"
+  echo " 0. Kembali"
+  echo "=============================================================="
+  read -p "Pilih jenis log [0-3] (Enter = 1): " l_opt
+  l_opt="${l_opt:-1}"
+  [ "$l_opt" = "0" ] && return
+
+  trap 'return 0' INT
+  case "$l_opt" in
+    1)
+      echo -e "\n--- Live Access Log (/var/log/xray/access.log) [Ctrl+C untuk stop] ---\n"
+      touch /var/log/xray/access.log
+      tail -n 30 -f /var/log/xray/access.log
+      ;;
+    2)
+      echo -e "\n--- Live Error Log (/var/log/xray/error.log) [Ctrl+C untuk stop] ---\n"
+      touch /var/log/xray/error.log
+      tail -n 30 -f /var/log/xray/error.log
+      ;;
+    3)
+      echo -e "\n--- Live Systemd Log (xray.service) [Ctrl+C untuk stop] ---\n"
+      journalctl -u xray -n 30 -f --no-pager
+      ;;
+    *)
+      echo "Pilihan tidak valid."
+      ;;
+  esac
+  trap - INT
+}
+
 # Mode CLI Non-Interaktif
 case "$1" in
   add)  create_account "$2" "$3" "$4" "$5"; exit 0 ;;
   del)  delete_account "$2"; exit 0 ;;
   list) list_accounts; exit 0 ;;
+  log)  tail -n 30 -f /var/log/xray/access.log; exit 0 ;;
 esac
 
 # Mode Menu Interaktif
@@ -301,9 +338,10 @@ while true; do
   echo " 5. Ubah Domain / Bug Default"
   echo " 6. Lihat Template Ingress Cloudflare Tunnel"
   echo " 7. Restart Xray & Cloudflared"
+  echo " 8. Monitor Log Live Xray (Access / Error / Systemd)"
   echo " 0. Keluar"
   echo "=============================================================="
-  read -p "Pilih menu [0-7]: " opt
+  read -p "Pilih menu [0-8]: " opt
   case "$opt" in
     1) create_account; read -p "Tekan Enter untuk kembali..." ;;
     2) delete_account; read -p "Tekan Enter untuk kembali..." ;;
@@ -325,6 +363,7 @@ while true; do
       echo "Layanan berhasil di-restart!"
       sleep 2
       ;;
+    8) show_live_log ;;
     0|x|X) exit 0 ;;
   esac
 done
