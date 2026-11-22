@@ -1,0 +1,37 @@
+# Contoh konfigurasi Ingress untuk Cloudflare Tunnel (/etc/cloudflared/config.yml)
+# atau dapat dimasukkan melalui Cloudflare Zero Trust -> Networks -> Tunnels -> Public Hostname
+#
+# Ganti <TUNNEL-UUID>, aw.srpcom.cloud, dan support.zoom.us sesuai domain/bug Anda.
+
+tunnel: <TUNNEL-UUID>
+credentials-file: /root/.cloudflared/<TUNNEL-UUID>.json
+
+ingress:
+  # 1. Mode Wildcard Bug (contoh: support.zoom.us.aw.srpcom.cloud -> Proxied CNAME ke tunnel)
+  - hostname: support.zoom.us.aw.srpcom.cloud
+    path: ^/vmessws.*
+    service: http://127.0.0.1:10001
+  - hostname: support.zoom.us.aw.srpcom.cloud
+    path: ^/vlessws.*
+    service: http://127.0.0.1:10002
+  - hostname: support.zoom.us.aw.srpcom.cloud
+    path: ^/trojanws.*
+    service: http://127.0.0.1:10003
+  - hostname: support.zoom.us.aw.srpcom.cloud
+    service: http_status:200
+
+  # 2. Mode Direct CDN (contoh: aw.srpcom.cloud -> Proxied CNAME ke tunnel)
+  - hostname: aw.srpcom.cloud
+    path: ^/vmessws.*
+    service: http://127.0.0.1:10001
+  - hostname: aw.srpcom.cloud
+    path: ^/vlessws.*
+    service: http://127.0.0.1:10002
+  - hostname: aw.srpcom.cloud
+    path: ^/trojanws.*
+    service: http://127.0.0.1:10003
+  - hostname: aw.srpcom.cloud
+    service: http_status:200
+
+  # Catch-all wajib di baris paling bawah
+  - service: http_status:404
