@@ -197,13 +197,48 @@ list_accounts() {
   echo "================================================================"
 }
 
-delete_account() {
-  local user="$1"
-  if [ -z "$user" ]; then
-    list_accounts
-    read -p "Masukkan Username yang ingin dihapus: " user
+resolve_user_input() {
+  local input="$1"
+  [ -z "$input" ] && return 1
+  if [[ "$input" =~ ^[0-9]+$ ]]; then
+    local line=$(grep -v '^[[:space:]]*$' "$EXP_FILE" | sed -n "${input}p")
+    if [ -n "$line" ]; then
+      echo "$line" | awk '{print $2}'
+      return 0
+    fi
+    return 1
   fi
-  [ -z "$user" ] && return
+  if grep -q " $input " "$EXP_FILE"; then
+    echo "$input"
+    return 0
+  fi
+  return 1
+}
+
+show_account_by_input() {
+  local raw_input="$1"
+  [ -z "$raw_input" ] && return 1
+  local user=$(resolve_user_input "$raw_input")
+  if [ -z "$user" ]; then
+    echo "Akun '$raw_input' tidak ditemukan."
+    return 1
+  fi
+  local line=$(grep " $user " "$EXP_FILE" | head -n 1)
+  show_account_info $(echo "$line" | awk '{print $1, $2, $3, $4, $5}')
+}
+
+delete_account() {
+  local raw_input="$1"
+  if [ -z "$raw_input" ]; then
+    list_accounts
+    read -p "Masukkan Nomor atau Username yang ingin dihapus (Enter = Batal): " raw_input
+  fi
+  [ -z "$raw_input" ] && return
+  local user=$(resolve_user_input "$raw_input")
+  if [ -z "$user" ]; then
+    echo "Akun '$raw_input' tidak ditemukan."
+    return 1
+  fi
   jq '(.inbounds[] | select(.protocol=="vmess" or .protocol=="vless" or .protocol=="trojan") | .settings.clients) |= map(select(.email != "'"$user"'"))' "$XRAY_CONF" > /tmp/xray_cfg_tmp.json
   if [ -s /tmp/xray_cfg_tmp.json ]; then
     mv /tmp/xray_cfg_tmp.json "$XRAY_CONF"
@@ -215,10 +250,11 @@ delete_account() {
 
 renew_account() {
   list_accounts
-  read -p "Masukkan Username yang ingin diperpanjang: " user
-  [ -z "$user" ] && return
-  if ! grep -q " $user " "$EXP_FILE"; then
-    echo "User tidak ditemukan."
+  read -p "Masukkan Nomor atau Username yang ingin diperpanjang (Enter = Batal): " raw_input
+  [ -z "$raw_input" ] && return
+  local user=$(resolve_user_input "$raw_input")
+  if [ -z "$user" ]; then
+    echo "Akun '$raw_input' tidak ditemukan."
     return
   fi
   read -p "Set Masa Aktif Baru (hari dari sekarang, 0 = Lifetime): " days
@@ -317,6 +353,7 @@ case "$1" in
   add)  create_account "$2" "$3" "$4" "$5"; exit 0 ;;
   del)  delete_account "$2"; exit 0 ;;
   list) list_accounts; exit 0 ;;
+  show) show_account_by_input "$2"; exit $? ;;
   log)  tail -n 30 -f /var/log/xray/access.log; exit 0 ;;
 esac
 
@@ -348,10 +385,9 @@ while true; do
     3) renew_account; read -p "Tekan Enter untuk kembali..." ;;
     4)
       list_accounts
-      read -p "Ketik Username untuk lihat Link/YAML (atau Enter untuk kembali): " u_detail
-      if [ -n "$u_detail" ] && grep -q " $u_detail " "$EXP_FILE"; then
-        line=$(grep " $u_detail " "$EXP_FILE" | head -n 1)
-        show_account_info $(echo "$line" | awk '{print $1, $2, $3, $4, $5}')
+      read -p "Ketik Nomor atau Username untuk lihat Link/YAML (Enter = Kembali): " u_detail
+      if [ -n "$u_detail" ]; then
+        show_account_by_input "$u_detail"
         read -p "Tekan Enter untuk kembali..."
       fi
       ;;
